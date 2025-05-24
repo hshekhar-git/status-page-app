@@ -142,7 +142,7 @@ export default async function PublicStatusPage({ params }: PageProps) {
                         <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                         <h1 className="text-2xl font-bold mb-2">Status Page Not Found</h1>
                         <p className="text-muted-foreground mb-6">
-                            The status page "{params.slug}" doesn't exist or hasn't been configured yet.
+                            The status page &quot;{params.slug}&quot; doesn&#39;t exist or hasn&#39;t been configured yet.
                         </p>
                         <div className="flex items-center justify-center gap-4">
                             <Button asChild>

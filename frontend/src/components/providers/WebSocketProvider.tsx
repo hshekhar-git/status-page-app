@@ -43,8 +43,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             setIsConnected(false);
         };
 
-        ws.current.onerror = (error) => {
-            console.error('WebSocket error:', error);
+        ws.current.onerror = (event) => {
+            console.log('WebSocket error:', event);
             setIsConnected(false);
         };
 

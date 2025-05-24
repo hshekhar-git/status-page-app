@@ -7,7 +7,7 @@ class ApiClient {
         return {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer test', // For testing - will use Clerk token later
-            'X-Organization-ID': '507f1f77bcf86cd799439011', // Default test org
+            'X-Organization-ID': '68323d8ecfc5cd8248620005', // Default test org
         };
     }
 
@@ -84,7 +84,6 @@ class ApiClient {
         });
     }
 
-    // Public API
     // Public API
     async getPublicStatus(slug: string): Promise<{
         organization: Organization;

@@ -42,7 +42,7 @@ func TenantMiddleware() gin.HandlerFunc {
         // For testing, use a default org ID
         orgID := c.GetHeader("X-Organization-ID")
         if orgID == "" {
-            orgID = "507f1f77bcf86cd799439011" // Default test org ID
+            orgID = "68323d8ecfc5cd8248620005" // Default test org ID
         }
         c.Set("organization_id", orgID)
         c.Next()
