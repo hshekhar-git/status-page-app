@@ -1,16 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useStatusPageUpdates } from '@/components/providers/WebSocketProvider';
 import { apiClient } from '@/lib/api';
-import { Clock, ExternalLink, AlertCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Clock, ExternalLink, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { Service, Incident, Organization } from '@/types';
+import { WebSocketStatus } from '@/components/ui/web-socket-status';
 
 interface StatusPageData {
     organization: Organization;
@@ -25,193 +27,35 @@ export default function PublicStatusPage() {
     const [data, setData] = useState<StatusPageData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [wsConnected, setWsConnected] = useState(false);
-    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-    // Use refs to avoid stale closures
-    const wsRef = useRef<WebSocket | null>(null);
-    const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const retryCountRef = useRef(0);
-    const isUnmountedRef = useRef(false);
-
-    // Load initial data function wrapped in useCallback
+    // Load data function
     const loadData = useCallback(async () => {
-        if (isUnmountedRef.current) return;
-
         try {
             setLoading(true);
             console.log('🔄 Loading status page data for:', slug);
             const response = await apiClient.getPublicStatus(slug);
             console.log('✅ Status page data loaded:', response);
-
-            if (!isUnmountedRef.current) {
-                setData(response);
-                setError(null);
-            }
+            setData(response);
+            setError(null);
         } catch (error) {
             console.error('❌ Error loading status page:', error);
-            if (!isUnmountedRef.current) {
-                setError('Failed to load status page');
-            }
+            setError('Failed to load status page');
         } finally {
-            if (!isUnmountedRef.current) {
-                setLoading(false);
-            }
+            setLoading(false);
         }
     }, [slug]);
 
-    // WebSocket connection function
-    const connectWebSocket = useCallback(() => {
-        if (isUnmountedRef.current) return;
-
-        try {
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL!;
-            console.log('🔌 Connecting to WebSocket:', wsUrl);
-
-            // Close existing connection if any
-            if (wsRef.current) {
-                wsRef.current.close();
-            }
-
-            wsRef.current = new WebSocket(wsUrl);
-
-            wsRef.current.onopen = () => {
-                if (isUnmountedRef.current) return;
-                console.log('✅ WebSocket connected to public status page');
-                setWsConnected(true);
-                retryCountRef.current = 0;
-            };
-
-            wsRef.current.onmessage = (event) => {
-                if (isUnmountedRef.current) return;
-
-                try {
-                    const message = JSON.parse(event.data);
-                    console.log('📨 WebSocket message received:', message);
-
-                    // Handle ALL types of updates that should refresh the status page
-                    const updateTriggerTypes = [
-                        'status_update',      // Service status changed
-                        'service_created',    // New service added
-                        'service_deleted',    // Service deleted
-                        'incident_created',   // New incident created
-                        'incident_updated',   // Incident updated
-                        'incident_update',    // Legacy incident update (keep for compatibility)
-                    ];
-
-                    if (updateTriggerTypes.includes(message.type)) {
-                        console.log(`🔄 Refreshing status page data for: ${message.type}`);
-
-                        // Add a small delay to ensure backend operations are completed
-                        setTimeout(() => {
-                            if (!isUnmountedRef.current) {
-                                loadData();
-                                setLastUpdated(new Date());
-                            }
-                        }, 100);
-                    } else {
-                        console.log(`ℹ️ Ignoring WebSocket message type: ${message.type}`);
-                    }
-                } catch (error) {
-                    console.error('❌ Failed to parse WebSocket message:', error);
-                }
-            };
-
-            wsRef.current.onclose = (event) => {
-                if (isUnmountedRef.current) return;
-
-                console.log('❌ WebSocket disconnected:', event.code, event.reason);
-                setWsConnected(false);
-
-                // Auto-retry connection with exponential backoff (max 5 retries)
-                if (retryCountRef.current < 5) {
-                    const retryDelay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
-                    console.log(`🔄 Retrying WebSocket connection in ${retryDelay}ms... (attempt ${retryCountRef.current + 1}/5)`);
-
-                    retryTimeoutRef.current = setTimeout(() => {
-                        if (!isUnmountedRef.current) {
-                            retryCountRef.current += 1;
-                            connectWebSocket();
-                        }
-                    }, retryDelay);
-                } else {
-                    console.log('❌ Max WebSocket retry attempts reached');
-                }
-            };
-
-            wsRef.current.onerror = (error) => {
-                console.error('❌ WebSocket error:', error);
-                if (!isUnmountedRef.current) {
-                    setWsConnected(false);
-                }
-            };
-
-        } catch (err) {
-            console.error('❌ WebSocket connection error:', err);
-            if (!isUnmountedRef.current) {
-                setWsConnected(false);
-            }
-        }
-    }, [loadData]);
-
-    // Initialize WebSocket connection
-    useEffect(() => {
-        connectWebSocket();
-
-        // Cleanup on unmount
-        return () => {
-            isUnmountedRef.current = true;
-
-            if (retryTimeoutRef.current) {
-                clearTimeout(retryTimeoutRef.current);
-            }
-
-            if (wsRef.current) {
-                wsRef.current.close();
-            }
-        };
-    }, [connectWebSocket]);
+    // Use the custom hook for WebSocket updates
+    const { lastUpdated } = useStatusPageUpdates(loadData);
 
     // Load initial data
     useEffect(() => {
         loadData();
     }, [loadData]);
 
-    // Manual refresh with WebSocket reconnection
-    const handleRefresh = useCallback(() => {
-        console.log('🔄 Manual refresh triggered');
+    const handleRefresh = () => {
         loadData();
-        setLastUpdated(new Date());
-
-        // If WebSocket is not connected, try to reconnect
-        if (!wsConnected) {
-            console.log('🔌 Attempting to reconnect WebSocket...');
-            retryCountRef.current = 0; // Reset retry count
-            connectWebSocket();
-        }
-    }, [loadData, wsConnected, connectWebSocket]);
-
-    // Periodic health check (every 30 seconds)
-    useEffect(() => {
-        const healthCheckInterval = setInterval(() => {
-            // If WebSocket is disconnected and we haven't reached max retries, try to reconnect
-            if (!wsConnected && retryCountRef.current < 5) {
-                console.log('🔄 Periodic WebSocket reconnection attempt...');
-                connectWebSocket();
-            }
-
-            // Refresh data every 5 minutes as a fallback
-            const now = new Date();
-            const timeSinceUpdate = now.getTime() - lastUpdated.getTime();
-            if (timeSinceUpdate > 5 * 60 * 1000) { // 5 minutes
-                console.log('🔄 Periodic data refresh (fallback)...');
-                loadData();
-                setLastUpdated(now);
-            }
-        }, 30000); // Check every 30 seconds
-
-        return () => clearInterval(healthCheckInterval);
-    }, [wsConnected, lastUpdated, connectWebSocket, loadData]);
+    };
 
     if (loading) {
         return (
@@ -266,22 +110,7 @@ export default function PublicStatusPage() {
             <div className="container mx-auto px-4 py-8 max-w-4xl">
                 {/* Connection Status */}
                 <div className="fixed top-4 right-4 z-50">
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-full text-xs shadow-lg transition-colors ${wsConnected
-                        ? 'bg-green-100 text-green-700 border border-green-200'
-                        : 'bg-red-100 text-red-700 border border-red-200'
-                        }`}>
-                        {wsConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                        <span>{wsConnected ? 'Live Updates' : 'Offline'}</span>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto p-1 ml-1 hover:bg-white/20"
-                            onClick={handleRefresh}
-                            title="Refresh data and reconnect"
-                        >
-                            <RefreshCw className="h-3 w-3" />
-                        </Button>
-                    </div>
+                    <WebSocketStatus size="sm" />
                 </div>
 
                 {/* Header */}
@@ -379,14 +208,10 @@ export default function PublicStatusPage() {
 
                 {/* Footer */}
                 <div className="mt-12 text-center text-sm text-muted-foreground border-t pt-6">
-                    <div className="flex items-center justify-center gap-4 mb-2">
-                        <p>Last updated: {lastUpdated.toLocaleString()}</p>
-                        <div className={`flex items-center gap-1 ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
-                            {wsConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                            <span className="text-xs">{wsConnected ? 'Live' : 'Offline'}</span>
-                        </div>
-                    </div>
-                    <p>Powered by {organization?.name} Status Page</p>
+                    <p>Last updated: {lastUpdated.toLocaleString()}</p>
+                    <p className="mt-1">
+                        Powered by {organization?.name} Status Page
+                    </p>
                 </div>
             </div>
         </div>

@@ -24,12 +24,15 @@ export default function DashboardPage() {
         loadData();
     }, []);
 
+    // Listen for WebSocket updates
     useEffect(() => {
-        if (lastMessage?.type === 'status_update' || lastMessage?.type === 'incident_update') {
+        if (lastMessage?.type === 'status_update' || lastMessage?.type === 'incident_update' ||
+            lastMessage?.type === 'service_created' || lastMessage?.type === 'service_deleted' ||
+            lastMessage?.type === 'incident_created' || lastMessage?.type === 'incident_updated') {
             loadData();
         }
     }, [lastMessage]);
-
+  
     const loadData = async () => {
         try {
             const [servicesRes, incidentsRes] = await Promise.all([

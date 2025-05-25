@@ -92,7 +92,6 @@ class ApiClient {
     }> {
         const response = await fetch(`${API_BASE_URL}/public/status/${slug}`);        
         if (!response.ok) {
-            console.log("🚀 ~ ApiClient ~ getPublicStatus ~ response:", response);
             if (response.status === 404) {
                 throw new Error('ORGANIZATION_NOT_FOUND');
             }

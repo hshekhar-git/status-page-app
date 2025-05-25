@@ -6,28 +6,14 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { WebSocketProvider } from '@/components/providers/WebSocketProvider';
 import {
     LayoutDashboard,
     Server,
     AlertTriangle,
     Settings,
-    ExternalLink,
-    Wifi,
-    WifiOff
+    ExternalLink
 } from 'lucide-react';
-import { useWebSocket } from '@/components/providers/WebSocketProvider';
-
-function ConnectionStatus() {
-    const { isConnected } = useWebSocket();
-
-    return (
-        <div className={`flex items-center gap-2 text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-            {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-            {isConnected ? 'Connected' : 'Disconnected'}
-        </div>
-    );
-}
+import { WebSocketStatus } from '@/components/ui/web-socket-status';
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -45,7 +31,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r">
                 <div className="flex h-16 items-center justify-between px-6">
                     <h1 className="text-xl font-bold">Status Page</h1>
-                    <ConnectionStatus />
+                    <WebSocketStatus size="sm" showRetryButton={false} />
                 </div>
 
                 <nav className="mt-6 px-3">
@@ -124,9 +110,5 @@ export default function DashboardLayout({
         return null;
     }
 
-    return (
-        <WebSocketProvider>
-            <DashboardLayoutContent>{children}</DashboardLayoutContent>
-        </WebSocketProvider>
-    );
+    return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
