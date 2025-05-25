@@ -90,10 +90,7 @@ class ApiClient {
         services: Service[];
         incidents: Incident[];
     }> {
-        const response = await fetch(`${API_BASE_URL}/public/status/${slug}`);
-
-        console.log("🚀 ~ ApiClient ~ getPublicStatus ~ response:", response);
-        
+        const response = await fetch(`${API_BASE_URL}/public/status/${slug}`);        
         if (!response.ok) {
             if (response.status === 404) {
                 throw new Error('ORGANIZATION_NOT_FOUND');
