@@ -52,44 +52,80 @@ func GetOrganizations(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"organizations": organizations})
 }
 
+
+
 func GetPublicStatus(c *gin.Context) {
     slug := c.Param("slug")
     
-    // Find organization by slug
+    // Find organization by slug (exclude deleted orgs)
     orgCollection := database.GetCollection("organizations")
     var org models.Organization
-    err := orgCollection.FindOne(context.TODO(), bson.M{"slug": slug}).Decode(&org)
+    orgFilter := bson.M{
+        "slug":    slug,
+        "deleted": bson.M{"$ne": true}, // Exclude where deleted=true, include where deleted field doesn't exist
+    }
+    
+    err := orgCollection.FindOne(context.TODO(), orgFilter).Decode(&org)
     if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Organization not found"})
+        if err == mongo.ErrNoDocuments {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Organization not found"})
+        } else {
+            log.Printf("Error finding organization: %v", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        }
         return
     }
 
-    // Get services for this organization
+    // Initialize empty slices to avoid null in JSON response
+    var services []models.Service = make([]models.Service, 0)
+    var incidents []models.Incident = make([]models.Incident, 0)
+
+    // Get non-deleted services for this organization
     servicesCollection := database.GetCollection("services")
-    cursor, err := servicesCollection.Find(context.TODO(), bson.M{"organization_id": org.ID})
+    servicesFilter := bson.M{
+        "organization_id": org.ID,
+        "deleted":         bson.M{"$ne": true}, // Only show services where deleted is NOT true
+    }
+    
+    cursor, err := servicesCollection.Find(context.TODO(), servicesFilter)
     if err != nil {
+        log.Printf("Error finding services: %v", err)
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
         return
     }
     defer cursor.Close(context.TODO())
 
-    var services []models.Service
-    cursor.All(context.TODO(), &services)
-
-    // Get active incidents
-    incidentsCollection := database.GetCollection("incidents")
-    incidentsCursor, err := incidentsCollection.Find(context.TODO(), bson.M{
-        "organization_id": org.ID,
-        "status": bson.M{"$ne": "resolved"},
-    })
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch incidents"})
+    if err := cursor.All(context.TODO(), &services); err != nil {
+        log.Printf("Error decoding services: %v", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode services"})
         return
     }
-    defer incidentsCursor.Close(context.TODO())
 
-    var incidents []models.Incident
-    incidentsCursor.All(context.TODO(), &incidents)
+    // Get non-deleted incidents for this organization
+    incidentsCollection := database.GetCollection("incidents")
+    incidentsFilter := bson.M{
+        "organization_id": org.ID,
+        "deleted":         bson.M{"$ne": true}, // Only show incidents where deleted is NOT true
+    }
+
+    // Sort by created_at descending, limit to 10 most recent
+    findOptions := options.Find().
+        SetSort(bson.D{{"created_at", -1}}).
+        SetLimit(10)
+    
+    incidentsCursor, err := incidentsCollection.Find(context.TODO(), incidentsFilter, findOptions)
+    if err != nil {
+        log.Printf("Error finding incidents: %v", err)
+        // Don't fail the entire request if incidents fail
+        log.Println("Continuing without incidents due to error")
+    } else {
+        defer incidentsCursor.Close(context.TODO())
+        
+        if err := incidentsCursor.All(context.TODO(), &incidents); err != nil {
+            log.Printf("Error decoding incidents: %v", err)
+            incidents = make([]models.Incident, 0)
+        }
+    }
 
     c.JSON(http.StatusOK, gin.H{
         "organization": org,
@@ -97,3 +133,89 @@ func GetPublicStatus(c *gin.Context) {
         "incidents":    incidents,
     })
 }
+    slug := c.Param("slug")
+    
+    // Find organization by slug (exclude deleted orgs)
+    orgCollection := database.GetCollection("organizations")
+    var org models.Organization
+    orgFilter := bson.M{
+        "slug": slug,
+        "$or": []bson.M{
+            {"deleted": bson.M{"$exists": false}},
+            {"deleted": false},
+        },
+    }
+    
+    err := orgCollection.FindOne(context.TODO(), orgFilter).Decode(&org)
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Organization not found"})
+        } else {
+            log.Printf("Error finding organization: %v", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        }
+        return
+    }
+
+    // Initialize empty slices to avoid null in JSON response
+    var services []models.Service = make([]models.Service, 0)
+    var incidents []models.Incident = make([]models.Incident, 0)
+
+    // Get non-deleted services for this organization
+    servicesCollection := database.GetCollection("services")
+    servicesFilter := bson.M{
+        "organization_id": org.ID,
+        "$or": []bson.M{
+            {"deleted": bson.M{"$exists": false}},
+            {"deleted": false},
+        },
+    }
+    
+    cursor, err := servicesCollection.Find(context.TODO(), servicesFilter)
+    if err != nil {
+        log.Printf("Error finding services: %v", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
+        return
+    }
+    defer cursor.Close(context.TODO())
+
+    if err := cursor.All(context.TODO(), &services); err != nil {
+        log.Printf("Error decoding services: %v", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode services"})
+        return
+    }
+
+    // Get non-deleted incidents for this organization
+    incidentsCollection := database.GetCollection("incidents")
+    incidentsFilter := bson.M{
+        "organization_id": org.ID,
+        "$or": []bson.M{
+            {"deleted": bson.M{"$exists": false}},
+            {"deleted": false},
+        },
+    }
+
+    // Sort by created_at descending, limit to 10 most recent
+    findOptions := options.Find().
+        SetSort(bson.D{{"created_at", -1}}).
+        SetLimit(10)
+    
+    incidentsCursor, err := incidentsCollection.Find(context.TODO(), incidentsFilter, findOptions)
+    if err != nil {
+        log.Printf("Error finding incidents: %v", err)
+        // Don't fail the entire request if incidents fail
+        log.Println("Continuing without incidents due to error")
+    } else {
+        defer incidentsCursor.Close(context.TODO())
+        
+        if err := incidentsCursor.All(context.TODO(), &incidents); err != nil {
+            log.Printf("Error decoding incidents: %v", err)
+            incidents = make([]models.Incident, 0)
+        }
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "organization": org,
+        "services":     services,
+        "incidents":    incidents,
+    })

@@ -12,7 +12,7 @@ const statusConfig = {
         label: 'Degraded Performance',
         variant: 'secondary' as const,
         color: 'bg-yellow-500',
-        textColor: 'text-yellow-200'
+        textColor: 'text-yellow-700'
     },
     partial_outage: {
         label: 'Partial Outage',
