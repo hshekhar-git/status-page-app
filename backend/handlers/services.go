@@ -4,13 +4,16 @@ import (
     "context"
     "net/http"
     "time"
+    "log"
 
     "github.com/gin-gonic/gin"
     "go.mongodb.org/mongo-driver/bson"
     "go.mongodb.org/mongo-driver/bson/primitive"
+    "go.mongodb.org/mongo-driver/mongo"
 
     "status-page-backend/database"
     "status-page-backend/models"
+    "status-page-backend/websocket"
 )
 
 func GetServices(c *gin.Context) {
@@ -22,10 +25,12 @@ func GetServices(c *gin.Context) {
     }
 
     collection := database.GetCollection("services")
-    cursor, err := collection.Find(context.TODO(), bson.M{
+    filter := bson.M{
         "organization_id": objID,
-        "deleted": bson.M{"$ne": true},
-    })
+        "deleted":         bson.M{"$ne": true},
+    }
+    
+    cursor, err := collection.Find(context.TODO(), filter)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
         return
@@ -57,11 +62,30 @@ func CreateService(c *gin.Context) {
     collection := database.GetCollection("services")
     result, err := collection.InsertOne(context.TODO(), service)
     if err != nil {
+        log.Printf("Error creating service: %v", err)
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create service"})
         return
     }
 
     service.ID = result.InsertedID.(primitive.ObjectID)
+
+    // Broadcast service creation via WebSocket
+    websocketMessage := websocket.Message{
+        Type: "service_created",
+        Data: map[string]interface{}{
+            "service_id":      service.ID.Hex(),
+            "service_name":    service.Name,
+            "service_status":  string(service.Status),
+            "service_desc":    service.Description,
+            "service_url":     service.URL,
+            "organization_id": service.OrganizationID.Hex(),
+            "action":          "service_created",
+            "timestamp":       time.Now().Unix(),
+        },
+    }
+    BroadcastWebSocket(c, websocketMessage)
+
+    log.Printf("✅ Service created: %s", service.Name)
     c.JSON(http.StatusCreated, gin.H{"service": service})
 }
 
@@ -83,10 +107,31 @@ func UpdateServiceStatus(c *gin.Context) {
         return
     }
 
+    // Get existing service for broadcasting
     collection := database.GetCollection("services")
+    var existingService models.Service
+    err = collection.FindOne(context.TODO(), bson.M{
+        "_id":     objID,
+        "deleted": bson.M{"$ne": true},
+    }).Decode(&existingService)
+    
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+        } else {
+            log.Printf("Error finding service: %v", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        }
+        return
+    }
+
+    // Update service status
     _, err = collection.UpdateOne(
         context.TODO(),
-        bson.M{"_id": objID},
+        bson.M{
+            "_id":     objID,
+            "deleted": bson.M{"$ne": true},
+        },
         bson.M{
             "$set": bson.M{
                 "status":     update.Status,
@@ -95,10 +140,28 @@ func UpdateServiceStatus(c *gin.Context) {
         },
     )
     if err != nil {
+        log.Printf("Error updating service status: %v", err)
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update service"})
         return
     }
 
+    // Broadcast status update via WebSocket
+    websocketMessage := websocket.Message{
+        Type: "status_update",
+        Data: map[string]interface{}{
+            "service_id":      serviceID,
+            "service_name":    existingService.Name,
+            "old_status":      string(existingService.Status),
+            "new_status":      string(update.Status),
+            "message":         update.Message,
+            "organization_id": existingService.OrganizationID.Hex(),
+            "action":          "service_status_updated",
+            "timestamp":       time.Now().Unix(),
+        },
+    }
+    BroadcastWebSocket(c, websocketMessage)
+
+    log.Printf("✅ Service status updated: %s -> %s", existingService.Name, update.Status)
     c.JSON(http.StatusOK, gin.H{"message": "Service status updated successfully"})
 }
 
@@ -111,15 +174,54 @@ func DeleteService(c *gin.Context) {
     }
 
     collection := database.GetCollection("services")
+    
+    // Get service info before deletion for broadcasting
+    var service models.Service
+    err = collection.FindOne(context.TODO(), bson.M{
+        "_id":     objID,
+        "deleted": bson.M{"$ne": true},
+    }).Decode(&service)
+    
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+        } else {
+            log.Printf("Error finding service for deletion: %v", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+        }
+        return
+    }
+
+    // Soft delete: set deleted = true
     _, err = collection.UpdateOne(
         context.TODO(),
         bson.M{"_id": objID},
-        bson.M{"$set": bson.M{"deleted": true, "updated_at": time.Now()}},
+        bson.M{
+            "$set": bson.M{
+                "deleted":    true,
+                "updated_at": time.Now(),
+            },
+        },
     )
     if err != nil {
+        log.Printf("Error deleting service: %v", err)
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete service"})
         return
     }
 
-    c.JSON(http.StatusOK, gin.H{"message": "Service deleted (flagged) successfully"})
+    // Broadcast service deletion via WebSocket
+    websocketMessage := websocket.Message{
+        Type: "service_deleted",
+        Data: map[string]interface{}{
+            "service_id":      serviceID,
+            "service_name":    service.Name,
+            "organization_id": service.OrganizationID.Hex(),
+            "action":          "service_deleted",
+            "timestamp":       time.Now().Unix(),
+        },
+    }
+    BroadcastWebSocket(c, websocketMessage)
+
+    log.Printf("✅ Service deleted: %s", service.Name)
+    c.JSON(http.StatusOK, gin.H{"message": "Service deleted successfully"})
 }

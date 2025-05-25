@@ -127,3 +127,25 @@ func (c *Client) writePump() {
         }
     }
 }
+
+// GetClientCount returns the number of connected clients
+func (h *Hub) GetClients() map[*Client]bool {
+    return h.clients
+}
+
+// GetClientCount returns the number of connected clients
+func (h *Hub) GetClientCount() int {
+    return len(h.clients)
+}
+
+// BroadcastToAll sends a message to all connected clients
+func (h *Hub) BroadcastToAll(message Message) {
+    data, err := json.Marshal(message)
+    if err != nil {
+        log.Printf("Error marshaling broadcast message: %v", err)
+        return
+    }
+    
+    log.Printf("📡 Broadcasting to %d clients: %s", len(h.clients), message.Type)
+    h.broadcast <- data
+}
