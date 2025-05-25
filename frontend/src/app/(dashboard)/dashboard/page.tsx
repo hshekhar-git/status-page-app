@@ -146,19 +146,19 @@ export default function DashboardPage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {services.slice(0, 6).map(service => (
-                            <Card key={service.id}>
-                                <CardContent className="py-4">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h3 className="font-medium">{service.name}</h3>
-                                            <p className="text-sm text-muted-foreground truncate">
+                            <Card key={service.id} className="h-full flex flex-col justify-between">
+                                <CardContent className="py-4 flex-1 flex flex-col justify-between">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex-1">
+                                            <h3 className="font-medium mb-1">{service.name}</h3>
+                                            <p className="text-sm text-muted-foreground whitespace-pre-line break-words max-h-20 overflow-y-auto">
                                                 {service.description || 'No description'}
                                             </p>
                                         </div>
                                         <StatusBadge status={service.status} showDot />
                                     </div>
                                 </CardContent>
-                            </Card>
+                   </Card>
                         ))}
                     </div>
                 </div>

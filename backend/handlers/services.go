@@ -22,7 +22,10 @@ func GetServices(c *gin.Context) {
     }
 
     collection := database.GetCollection("services")
-    cursor, err := collection.Find(context.TODO(), bson.M{"organization_id": objID})
+    cursor, err := collection.Find(context.TODO(), bson.M{
+        "organization_id": objID,
+        "deleted": bson.M{"$ne": true},
+    })
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
         return
@@ -108,11 +111,15 @@ func DeleteService(c *gin.Context) {
     }
 
     collection := database.GetCollection("services")
-    _, err = collection.DeleteOne(context.TODO(), bson.M{"_id": objID})
+    _, err = collection.UpdateOne(
+        context.TODO(),
+        bson.M{"_id": objID},
+        bson.M{"$set": bson.M{"deleted": true, "updated_at": time.Now()}},
+    )
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete service"})
         return
     }
 
-    c.JSON(http.StatusOK, gin.H{"message": "Service deleted successfully"})
+    c.JSON(http.StatusOK, gin.H{"message": "Service deleted (flagged) successfully"})
 }

@@ -8,24 +8,25 @@ import { format } from 'date-fns';
 import Link from 'next/link';
 
 interface PageProps {
-    params: { slug: string };
+    params: Promise<{ slug: string }>;
 }
 
 export default async function PublicStatusPage({ params }: PageProps) {
+    const { slug } = await params;
+
     try {
-        const data = await apiClient.getPublicStatus(params.slug);
-        console.log("🚀 ~ PublicStatusPage ~ data:", data);
+        const data = await apiClient.getPublicStatus(slug);
         const { organization, services, incidents } = data;
 
         const getOverallStatus = () => {
-            if (services?.length === 0) return 'operational';
-            if (services?.some(s => s.status === 'major_outage')) return 'major_outage';
-            if (services?.some(s => s.status === 'partial_outage')) return 'partial_outage';
-            if (services?.some(s => s.status === 'degraded_performance')) return 'degraded_performance';
+            if (services.length === 0) return 'operational';
+            if (services.some(s => s.status === 'major_outage')) return 'major_outage';
+            if (services.some(s => s.status === 'partial_outage')) return 'partial_outage';
+            if (services.some(s => s.status === 'degraded_performance')) return 'degraded_performance';
             return 'operational';
         };
 
-        const activeIncidents = (incidents ?? []).filter(i => i.status !== 'resolved');
+        const activeIncidents = incidents.filter(i => i.status !== 'resolved');
         const overallStatus = getOverallStatus();
 
         return (
@@ -80,18 +81,18 @@ export default async function PublicStatusPage({ params }: PageProps) {
                     {/* Services Status */}
                     <div className="mb-8">
                         <h2 className="text-2xl font-semibold mb-4">Services</h2>
-                        {services?.length > 0 ? (
+                        {services.length > 0 ? (
                             <div className="space-y-3">
-                                {services?.map(service => (
+                                {services.map(service => (
                                     <Card key={service.id}>
                                         <CardContent className="py-4">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2">
-                                                        <h3 className="font-medium">{service.name}</h3>
-                                                        {service.url && (
+                                                        <h3 className="font-medium">{service?.name}</h3>
+                                                        {service?.url && (
                                                             <a
-                                                                href={service.url}
+                                                                href={service?.url}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="text-muted-foreground hover:text-foreground"
@@ -100,13 +101,13 @@ export default async function PublicStatusPage({ params }: PageProps) {
                                                             </a>
                                                         )}
                                                     </div>
-                                                    {service.description && (
+                                                    {service?.description && (
                                                         <p className="text-sm text-muted-foreground mt-1">
-                                                            {service.description}
+                                                            {service?.description}
                                                         </p>
                                                     )}
                                                 </div>
-                                                <StatusBadge status={service.status} />
+                                                <StatusBadge status={service?.status} />
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -125,7 +126,7 @@ export default async function PublicStatusPage({ params }: PageProps) {
                     <div className="mt-12 text-center text-sm text-muted-foreground border-t pt-6">
                         <p>Last updated: {new Date().toLocaleString()}</p>
                         <p className="mt-1">
-                            Powered by {organization.name} Status Page
+                            Powered by {organization?.name} Status Page
                         </p>
                     </div>
                 </div>
@@ -142,7 +143,7 @@ export default async function PublicStatusPage({ params }: PageProps) {
                         <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                         <h1 className="text-2xl font-bold mb-2">Status Page Not Found</h1>
                         <p className="text-muted-foreground mb-6">
-                            The status page &quot;{params.slug}&quot; doesn&#39;t exist or hasn&#39;t been configured yet.
+                            The status page &quot;{slug}&quot; doesn&apos;t exist or hasn&apos;t been configured yet.
                         </p>
                         <div className="flex items-center justify-center gap-4">
                             <Button asChild>
@@ -162,7 +163,8 @@ export default async function PublicStatusPage({ params }: PageProps) {
 // Add metadata for better SEO
 export async function generateMetadata({ params }: PageProps) {
     try {
-        const data = await apiClient.getPublicStatus(params.slug);
+        const { slug } = await params;
+        const data = await apiClient.getPublicStatus(slug);
         return {
             title: `${data.organization.name} - Status Page`,
             description: data.organization.description || `Status page for ${data.organization.name}`,

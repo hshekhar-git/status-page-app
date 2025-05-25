@@ -22,6 +22,7 @@ type Service struct {
     Description    string             `bson:"description" json:"description"`
     Status         ServiceStatus      `bson:"status" json:"status"`
     URL            string             `bson:"url" json:"url"`
+    Deleted   bool      `bson:"deleted,omitempty" json:"deleted"`
     CreatedAt      time.Time          `bson:"created_at" json:"created_at"`
     UpdatedAt      time.Time          `bson:"updated_at" json:"updated_at"`
 }

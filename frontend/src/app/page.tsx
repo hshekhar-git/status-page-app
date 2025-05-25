@@ -51,12 +51,6 @@ export default function HomePage() {
     },
   ];
 
-  useEffect(() => {
-    if (isSignedIn) {
-      loadDashboardStats();
-    }
-  }, [isSignedIn]);
-
   const loadDashboardStats = async () => {
     try {
       setLoading(true);
@@ -96,6 +90,13 @@ export default function HomePage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isSignedIn) {
+      loadDashboardStats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
 
   const calculateOverallStatus = (services: Service[]): ServiceStatus => {
     if (services.length === 0) return 'operational';

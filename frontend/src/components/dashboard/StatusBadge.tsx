@@ -6,7 +6,7 @@ const statusConfig = {
         label: 'Operational',
         variant: 'default' as const,
         color: 'bg-green-500',
-        textColor: 'text-green-700'
+        textColor: 'text-green-200'
     },
     degraded_performance: {
         label: 'Degraded Performance',
@@ -18,7 +18,7 @@ const statusConfig = {
         label: 'Partial Outage',
         variant: 'destructive' as const,
         color: 'bg-orange-500',
-        textColor: 'text-orange-700'
+        textColor: 'text-orange-200'
     },
     major_outage: {
         label: 'Major Outage',
