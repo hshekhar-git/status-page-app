@@ -46,7 +46,7 @@ func main() {
 
     // CORS middleware
     r.Use(cors.New(cors.Config{
-        AllowOrigins:     []string{"*"}, // Be more restrictive in production
+        AllowOrigins:     []string{"*"}, 
         AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
         AllowHeaders:     []string{"*"},
         AllowCredentials: true,
@@ -90,13 +90,13 @@ func main() {
         // Service routes
         api.GET("/services", handlers.GetServices)
         api.POST("/services", handlers.CreateService)
-        api.PUT("/services/:id/status", handlers.UpdateServiceStatus) // This will now broadcast
+        api.PUT("/services/:id/status", handlers.UpdateServiceStatus) 
         api.DELETE("/services/:id", handlers.DeleteService)
 
         // Incident routes
         api.GET("/incidents", handlers.GetIncidents)
-        api.POST("/incidents", handlers.CreateIncident)     // This will now broadcast
-        api.PUT("/incidents/:id", handlers.UpdateIncident) // This will now broadcast
+        api.POST("/incidents", handlers.CreateIncident)    
+        api.PUT("/incidents/:id", handlers.UpdateIncident) 
     }
 
     port := os.Getenv("PORT")
