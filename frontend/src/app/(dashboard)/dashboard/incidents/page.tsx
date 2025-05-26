@@ -71,6 +71,10 @@ export default function IncidentsPage() {
         }
     };
 
+    const handleIncidentSubmit = async () => {
+        await loadData();
+    };
+
     const getStatusBadge = (status: IncidentStatus) => {
         const config = statusConfig[status];
         return (
@@ -98,7 +102,11 @@ export default function IncidentsPage() {
                     <h1 className="text-3xl font-bold">Incidents</h1>
                     <p className="text-muted-foreground">Track and manage service incidents</p>
                 </div>
-                <IncidentForm services={services} onSubmit={loadData} />
+                <IncidentForm
+                    services={services}
+                    onSubmit={handleIncidentSubmit}
+                    key="create-incident-form"
+                />
             </div>
 
             {/* Statistics */}
@@ -164,45 +172,54 @@ export default function IncidentsPage() {
             {/* Incidents List */}
             {filteredIncidents.length > 0 ? (
                 <div className="space-y-4">
-                    {filteredIncidents.map(incident => (
-                        <Card key={incident.id} className={`${incident.status !== 'resolved' ? 'border-l-4 border-l-red-500' : ''
-                            }`}>
-                            <CardHeader>
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <CardTitle className="flex items-center gap-2">
-                                            {incident.title}
-                                            {getStatusBadge(incident.status as IncidentStatus)}
-                                        </CardTitle>
-                                        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                                            <div className="flex items-center gap-1">
-                                                <Clock className="h-3 w-3" />
-                                                {format(new Date(incident.created_at), 'MMM dd, yyyy HH:mm')}
+                    {filteredIncidents.map(incident => {
+                        // Find the current incident data to ensure we're using the latest version
+                        const currentIncident = incidents.find(i => i.id === incident.id) || incident;
+
+                        return (
+                            <Card key={incident.id} className={`${incident.status !== 'resolved' ? 'border-l-4 border-l-red-500' : ''
+                                }`}>
+                                <CardHeader>
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <CardTitle className="flex items-center gap-2">
+                                                {incident.title}
+                                                {getStatusBadge(incident.status as IncidentStatus)}
+                                            </CardTitle>
+                                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                                                <div className="flex items-center gap-1">
+                                                    <Clock className="h-3 w-3" />
+                                                    {format(new Date(incident.created_at), 'MMM dd, yyyy HH:mm')}
+                                                </div>
+                                                <Badge variant="outline">{incident.type}</Badge>
                                             </div>
-                                            <Badge variant="outline">{incident.type}</Badge>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <IncidentForm
+                                                key={`edit-${incident.id}-${incident.updated_at || incident.created_at}`}
+                                                services={services}
+                                                incident={currentIncident}
+                                                onSubmit={handleIncidentSubmit}
+                                                trigger={
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                }
+                                            />
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <IncidentForm
-                                            services={services}
-                                            incident={incident}
-                                            onSubmit={loadData}
-                                            trigger={
-                                                <Button variant="outline" size="sm">
-                                                    Edit
-                                                </Button>
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            {incident.description && (
-                                <CardContent>
-                                    <p className="text-sm">{incident.description}</p>
-                                </CardContent>
-                            )}
-                        </Card>
-                    ))}
+                                </CardHeader>
+                                {incident.description && (
+                                    <CardContent>
+                                        <p className="text-sm">{incident.description}</p>
+                                    </CardContent>
+                                )}
+                            </Card>
+                        );
+                    })}
                 </div>
             ) : incidents.length > 0 ? (
                 <div className="text-center py-8">
@@ -217,7 +234,11 @@ export default function IncidentsPage() {
                             <p className="text-muted-foreground mb-4">
                                 When issues occur, report them here to keep your users informed.
                             </p>
-                            <IncidentForm services={services} onSubmit={loadData} />
+                            <IncidentForm
+                                services={services}
+                                onSubmit={handleIncidentSubmit}
+                                key="empty-state-form"
+                            />
                         </div>
                     </CardContent>
                 </Card>
