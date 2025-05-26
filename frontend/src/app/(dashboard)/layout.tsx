@@ -57,7 +57,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
                 <div className="absolute bottom-4 left-4 right-4">
                     <Button variant="outline" className="w-full justify-start" asChild>
-                        <Link href="/status/demo">
+                        <Link href="/status/demo" target="_blank" >
                             <ExternalLink className="h-4 w-4 mr-2" />
                             View Public Page
                         </Link>
